@@ -71,6 +71,8 @@ Enter your NU username and password credentials
 - You can set the interval between each check
 - You can manually refresh at any time
 
+Note: at first time running, you might need to manually refresh a couple of times if it does not show the course names properly. This is a known issue; if you have any suggestions on how to fix it, please let me know.
+
 ## Technical Stack
 **Frontend:**
 - React + Vite
