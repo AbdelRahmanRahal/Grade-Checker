@@ -1,28 +1,23 @@
 const express = require('express')
-const puppeteer = require('puppeteer')
 const router = express.Router()
+const { getPage } = require('./../browserInstance')
 
 const LOGIN_URL = 'https://register.nu.edu.eg/PowerCampusSelfService/Home/LogIn'
-const GRADES_URL = 'https://register.nu.edu.eg/PowerCampusSelfService/Grades/GradeReport'
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body
 
   if (!username || !password) {
-    console.log('Login error: Username and password are required')
     return res.status(400).json({ error: 'Username and password are required' })
   }
 
-  let browser
+  let page
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
-    const page = await browser.newPage()
-
+    page = await getPage()
+    
     console.log('Navigating to login page...')
     await page.goto(LOGIN_URL, { waitUntil: 'networkidle2' })
+
 
     console.log('Entering username...')
     await page.type('#txtUsername', username)
@@ -93,19 +88,18 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Login failed. Please try again.' })
     }
 
-    console.log('Getting cookies for session...')
+     console.log('Getting cookies for session...')
     const cookies = await page.cookies()
-    await browser.close()
-
-    console.log('Login successful!')
+    
     res.json({ 
       success: true,
       cookies 
     })
   } catch (error) {
     console.error('Login error:', error)
-    if (browser) await browser.close()
     res.status(500).json({ error: 'Login failed. Please try again later.' })
+  } finally {
+    if (page) await page.close()
   }
 })
 
