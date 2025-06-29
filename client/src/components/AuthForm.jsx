@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'react-toastify'
 import { login } from '../api/auth'
 
 export default function AuthForm({ setAuthenticated, credentials, setCredentials }) {
   const [step, setStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadingDots, setLoadingDots] = useState('.')
+
+  // Animation effect for loading dots
+  useEffect(() => {
+    let interval
+    if (isLoading) {
+      interval = setInterval(() => {
+        setLoadingDots(prev => {
+          if (prev === '.') return '..'
+          if (prev === '..') return '...'
+          return '.'
+        })
+      }, 500)
+    }
+    return () => clearInterval(interval)
+  }, [isLoading])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -19,7 +35,21 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
         toast.success('Login successful')
       }
     } catch (error) {
-      toast.error(error.message || 'Login failed. Please check your credentials.')
+      // Handle specific error messages
+      if (error.message.includes('Username does not exist')) {
+        toast.error('Username does not exist', {
+          toastId: 'username-error' // Prevent duplicate toasts
+        })
+        setStep(1) // Go back to username step
+      } else if (error.message.includes('Invalid password')) {
+        toast.error('Invalid password. Please try again.', {
+          toastId: 'password-error'
+        })
+      } else {
+        toast.error(error.message || 'Login failed. Please check your credentials.', {
+          toastId: 'generic-error'
+        })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -43,11 +73,18 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
                 onChange={(e) => setCredentials({...credentials, username: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                autoFocus
               />
             </div>
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => {
+                if (!credentials.username.trim()) {
+                  toast.error('Please enter your username')
+                  return
+                }
+                setStep(2)
+              }}
               className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
               Next
@@ -66,6 +103,7 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
                 onChange={(e) => setCredentials({...credentials, password: e.target.value})}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
+                autoFocus
               />
             </div>
             <div className="flex gap-2">
@@ -83,7 +121,7 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
               >
                 {isLoading ? (
                   <span className="animate-pulse">
-                    Logging in{'.'.repeat((Date.now() / 300) % 3 + 1)}
+                    Logging in{loadingDots}
                   </span>
                 ) : 'Login'}
               </button>
