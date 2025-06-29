@@ -81,7 +81,11 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
                 disabled={isLoading}
                 className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
               >
-                {isLoading ? 'Logging in...' : 'Login'}
+                {isLoading ? (
+                  <span className="animate-pulse">
+                    Logging in{'.'.repeat((Date.now() / 300) % 3 + 1)}
+                  </span>
+                ) : 'Login'}
               </button>
             </div>
           </div>
