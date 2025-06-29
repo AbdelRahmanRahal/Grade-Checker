@@ -232,11 +232,17 @@ export default function Dashboard({ credentials, setAuthenticated }) {
             disabled={isAutoRefresh}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {isAutoRefresh && (
-            <p className="text-xs text-gray-500 mt-1">
-              Disable auto-refresh to change interval
-            </p>
-          )}
+          {
+            isAutoRefresh ? (
+              <p className="text-xs text-gray-500 mt-1">
+                Disable auto-refresh to change interval
+              </p>
+            ) : (
+              <p className="text-xs text-red-600 mt-1">
+                Hot tip: Don't set this too low, as it may lead to rate limiting from the server, or unexpected behavior from the code.
+              </p>
+            )
+          }
         </div>
       </div>
 
