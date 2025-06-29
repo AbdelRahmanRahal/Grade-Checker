@@ -2,6 +2,7 @@ const express = require('express')
 const fs = require('fs')
 const path = require('path')
 const router = express.Router()
+const notifier = require('node-notifier')
 const { getPage } = require('./../browserInstance')
 
 const GRADES_URL = 'https://register.nu.edu.eg/PowerCampusSelfService/Grades/GradeReport'
@@ -16,6 +17,17 @@ if (fs.existsSync(CACHE_PATH)) {
 // Save cache to file
 function saveCache() {
   fs.writeFileSync(CACHE_PATH, JSON.stringify(gradesCache, null, 2))
+}
+
+// Send desktop notification
+function sendNotification(course) {
+  notifier.notify({
+    title: 'New Grade Available!',
+    message: `${course.code}: ${course.grade}`,
+    icon: path.join(__dirname, '../../public/a+.png'),
+    sound: true, // Play system sound
+    wait: true // Keep notification visible until dismissed
+  })
 }
 
 router.post('/fetch', async (req, res) => {
@@ -132,6 +144,9 @@ router.post('/fetch', async (req, res) => {
               }
               gradesCache[courseCode] = courseData
               newGrades.push(courseData)
+              
+              // Send desktop notification for new grade
+              sendNotification(courseData)
             }
             
             break; // Found the course, break inner loop
