@@ -13,8 +13,9 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Username and password are required' })
   }
 
+  let browser
   try {
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
@@ -45,7 +46,15 @@ router.post('/login', async (req, res) => {
       console.log(`Username error: ${errorText}`)
       await browser.close()
       return res.status(401).json({ error: errorText.includes('exist') ? 
-        'Username does not exist' : errorText })
+        'Username does not exist.' : errorText })
+    }
+
+    // Only proceed with password if we found the password field
+    const passwordField = await page.$('#txtPassword')
+    if (!passwordField) {
+      console.log('Password field not found after username submission')
+      await browser.close()
+      return res.status(401).json({ error: 'Username does not exist.' })
     }
 
     console.log('Entering password...')
@@ -67,7 +76,7 @@ router.post('/login', async (req, res) => {
     }
 
     console.log('Checking for password error...')
-    const passwordError = await page.$('[role="alertdialog"] .jss826')
+    const passwordError = await page.$('[role="alertdialog"]')
     if (passwordError) {
       const errorText = await page.evaluate(el => el.textContent, passwordError)
       console.log(`Password error: ${errorText}`)
@@ -76,7 +85,7 @@ router.post('/login', async (req, res) => {
         'Invalid password' : errorText })
     }
 
-    console.log('Checking if login was successful...')
+    console.log('Checking if login was successful...') // Ensuring we are not on the login page (kind of unnecessary but what the hell)
     const currentUrl = page.url()
     if (currentUrl.includes('LogIn')) {
       console.log('Login failed. Please try again.')
@@ -95,6 +104,7 @@ router.post('/login', async (req, res) => {
     })
   } catch (error) {
     console.error('Login error:', error)
+    if (browser) await browser.close()
     res.status(500).json({ error: 'Login failed. Please try again later.' })
   }
 })
