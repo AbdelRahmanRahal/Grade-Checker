@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'react-toastify'
+import { login } from '../api/auth'
 
 export default function AuthForm({ setAuthenticated, credentials, setCredentials }) {
   const [step, setStep] = useState(1)
@@ -10,14 +11,16 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
     setIsLoading(true)
     
     try {
-      // This will be replaced with actual authentication later
-      // For now, just simulate a successful login
-      setTimeout(() => {
+      const response = await login(credentials)
+      if (response.success) {
+        // Store cookies in memory for future requests
+        sessionStorage.setItem('authCookies', JSON.stringify(response.cookies))
         setAuthenticated(true)
-        setIsLoading(false)
-      }, 1000)
+        toast.success('Login successful')
+      }
     } catch (error) {
-      toast.error('Login failed. Please check your credentials.')
+      toast.error(error.message || 'Login failed. Please check your credentials.')
+    } finally {
       setIsLoading(false)
     }
   }
@@ -90,4 +93,3 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
     </div>
   )
 }
-
