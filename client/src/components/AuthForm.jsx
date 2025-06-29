@@ -31,6 +31,8 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
       if (response.success) {
         // Store cookies in memory for future requests
         sessionStorage.setItem('authCookies', JSON.stringify(response.cookies))
+        // Store username in session storage
+        sessionStorage.setItem('username', credentials.username)
         setAuthenticated(true)
         toast.success('Login successful')
       }
