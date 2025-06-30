@@ -1,28 +1,36 @@
-const express = require('express')
-const cors = require('cors')
-const authRouter = require('./scrapers/authScraper')
-const gradeRouter = require('./scrapers/gradeScraper')
-const { initializeBrowser } = require('./browserInstance')
+const cors = require('cors');
+const express = require('express');
 
-const app = express()
-const PORT = 3001
+const { initializeBrowser } = require('./browserInstance');
+const authRouter = require('./scrapers/authScraper');
+const gradeRouter = require('./scrapers/gradeScraper');
 
-// Initialize browser when server starts
+const app = express();
+const PORT = 3001;
+
+/**
+ * Initializes the Express server with API routes.
+ * @description Sets up CORS, JSON parsing, and routes for authentication and grade scraping.
+ * Also initializes the Puppeteer browser instance before starting the server.
+ */
 initializeBrowser()
   .then(() => {
-    console.log('Browser instance initialized')
+    console.log('Browser instance initialized');
     
-    app.use(cors())
-    app.use(express.json())
+    // Middleware setup
+    app.use(cors()); // Enable CORS for all routes
+    app.use(express.json()); // Parse JSON request bodies
 
-    app.use('/auth', authRouter)
-    app.use('/grades', gradeRouter)
+    // Route handlers
+    app.use('/auth', authRouter); // Authentication endpoints
+    app.use('/grades', gradeRouter); // Grade scraping endpoints
 
+    // Start the server
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`)
-    })
+      console.log(`Server running on port ${PORT}`);
+    });
   })
   .catch(err => {
-    console.error('Failed to initialize browser:', err)
-    process.exit(1)
-  })
+    console.error('Failed to initialize browser:', err);
+    process.exit(1); // Exit with error if browser can't be initialized
+  });

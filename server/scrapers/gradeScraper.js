@@ -1,27 +1,40 @@
-const express = require('express')
-const fs = require('fs')
-const path = require('path')
-const router = express.Router()
-const notifier = require('node-notifier')
-const { getPage } = require('./../browserInstance')
+const fs = require('fs');
+const path = require('path');
 
+const express = require('express');
+const notifier = require('node-notifier');
+
+const { getPage } = require('./../browserInstance');
+
+const router = express.Router();
+
+// Constants for configuration
 const GRADES_URL = 'https://register.nu.edu.eg/PowerCampusSelfService/Grades/GradeReport'
 const CACHE_PATH = path.join(__dirname, '../../grades_cache.json')
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000; // 5 seconds between retries
 
-// Load or initialize cache
-let gradesCache = {}
+// Load or initialize grades cache from file
+let gradesCache = {};
 if (fs.existsSync(CACHE_PATH)) {
-  gradesCache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'))
+  gradesCache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
 }
 
-// Save cache to file
+/**
+ * Persists the current grades cache to disk.
+ * @function saveCache
+ */
 function saveCache() {
-  fs.writeFileSync(CACHE_PATH, JSON.stringify(gradesCache, null, 2))
+  fs.writeFileSync(CACHE_PATH, JSON.stringify(gradesCache, null, 2));
 }
 
-// Send desktop notification
+/**
+ * Sends a desktop notification for a new grade.
+ * @function sendNotification
+ * @param {Object} course - The course with new grade
+ * @param {string} course.code - Course code
+ * @param {string} course.grade - Grade received
+ */
 function sendNotification(course) {
   notifier.notify({
     title: 'New Grade Available!',
@@ -29,10 +42,18 @@ function sendNotification(course) {
     icon: path.join(__dirname, '../../public/a+.png'),
     sound: true, // Play system sound
     wait: true // Keep notification visible until dismissed
-  })
+  });
 }
 
-// Retry helper function
+/**
+ * Retries a function until it succeeds or reaches max attempts.
+ * @async
+ * @function withRetry
+ * @param {Function} fn - Async function to retry
+ * @param {number} maxAttempts - Maximum retry attempts
+ * @returns {Promise<any>} Result of the successful function call
+ * @throws {Error} If all attempts fail
+ */
 async function withRetry(fn, maxAttempts = MAX_RETRIES) {
   let attempts = 0;
   
@@ -47,23 +68,36 @@ async function withRetry(fn, maxAttempts = MAX_RETRIES) {
         throw error;
       }
       
-      // Wait before retrying
+      // Exponential backoff could be implemented here if needed
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
     }
   }
 }
 
+/**
+ * @route POST /fetch
+ * @group Grades - University grade operations
+ * @param {Array} cookies.body.required - Session cookies from authentication
+ * @param {Array<string>} trackedCourses.body.required - Course codes to track
+ * @returns {object} 200 - Success response with grades data
+ * @returns {object} 400 - Missing parameters error
+ * @returns {object} 401 - Session expired error
+ * @returns {object} 500 - Server error
+ * @returns {object} 504 - Gateway timeout error
+ * @description Fetches grades from university site, compares with cache, and notifies of new grades.
+ * Implements retry logic for unreliable network conditions.
+ */
 router.post('/fetch', async (req, res) => {
-  const { cookies, trackedCourses } = req.body
+  const { cookies, trackedCourses } = req.body;
 
   if (!cookies || !trackedCourses) {
-    return res.status(400).json({ error: 'Cookies and tracked courses are required' })
+    return res.status(400).json({ error: 'Cookies and tracked courses are required' });
   }
 
   let page;
   try {
     page = await getPage();
-    await page.setCookie(...cookies);
+    await page.setCookie(...cookies); // Restore session
     
     // Wrap navigation in retry logic
     await withRetry(async (attempts = 0) => {
@@ -74,7 +108,7 @@ router.post('/fetch', async (req, res) => {
       });
     });
 
-    // Check if we're still logged in
+    // Check if session is still valid
     if (page.url().includes('LogIn')) {
       return res.status(401).json({ error: 'Session expired. Please login again.' });
     }
@@ -88,7 +122,7 @@ router.post('/fetch', async (req, res) => {
       return parseFloat(overallItem?.querySelector('h3')?.textContent || '0');
     });
 
-    // Scrape total credit hours using structure-based selector
+    // Scrape total credit hours
     const creditHours = await page.evaluate(() => {
       const gridItems = Array.from(document.querySelectorAll('div.grid-item'));
       const earnedItem = gridItems.find(item => 
@@ -97,17 +131,17 @@ router.post('/fetch', async (req, res) => {
       return parseFloat(earnedItem?.querySelector('h3')?.textContent || '0');
     });
 
-    // Scrape grades for tracked courses that aren't in cache yet
-    const newGrades = []
-    const coursesToCheck = trackedCourses.filter(code => !gradesCache[code])
+    // Only check courses that aren't already in cache
+    const newGrades = [];
+    const coursesToCheck = trackedCourses.filter(code => !gradesCache[code]);
 
-    // Get all course rows
+    // Get all course rows from the table
     const rows = await page.$$('table#tblActivityGradesMidterm tbody tr');
     
     // Create a map to store course names for all courses
     const courseNames = new Map();
     
-    // First pass: collect all course names
+    // First pass: collect all course names for reference
     for (const row of rows) {
       try {
         const courseText = await row.$eval(
@@ -115,7 +149,7 @@ router.post('/fetch', async (req, res) => {
           el => el.textContent.trim()
         );
         
-        // Extract course code and name
+        // Extract course code and name using regex
         const match = courseText.match(/^([\w\/]+):\s*(.+)$/);
         if (match) {
           const code = match[1].trim();
@@ -127,7 +161,7 @@ router.post('/fetch', async (req, res) => {
       }
     }
     
-    // Second pass: process courses to check
+    // Second pass: process courses we need to check
     for (const courseCode of coursesToCheck) {
       try {
         let found = false;
@@ -139,15 +173,13 @@ router.post('/fetch', async (req, res) => {
             el => el.textContent.trim()
           );
           
-          // Skip non-lecture rows
-          if (subtype !== 'Lecture') continue;
+          if (subtype !== 'Lecture') continue; // Skip labs/tutorials
           
           const courseText = await row.$eval(
             'td[data-label="Course"] a span',
             el => el.textContent.trim()
           );
           
-          // Check if this is the row for our course
           if (courseText.includes(courseCode)) {
             found = true;
             
@@ -157,44 +189,42 @@ router.post('/fetch', async (req, res) => {
               el => el.textContent.trim()
             );
 
-            // Get course name from our map or default
+            // Get course name from our map or fall back to parsing
             const courseName = courseNames.get(courseCode) || 
                              courseText.split(':')[1]?.trim() || 
                              `Course ${courseCode}`;
 
-            // Only cache if grade exists
             if (finalGrade) {
               const courseData = {
                 code: courseCode,
                 name: courseName,
                 grade: finalGrade
-              }
-              gradesCache[courseCode] = courseData
-              newGrades.push(courseData)
+              };
+              gradesCache[courseCode] = courseData;
+              newGrades.push(courseData);
               
-              // Send desktop notification for new grade
-              sendNotification(courseData)
+              // Notify user of new grade
+              sendNotification(courseData);
             }
             
-            break; // Found the course, break inner loop
+            break; // Found the course, no need to check other rows
           }
         }
         
-        // If we didn't find the course in any row
         if (!found) {
           console.log(`Course ${courseCode} not found in grade report`);
         }
       } catch (error) {
-        console.log(`Error scraping ${courseCode}:`, error.message)
+        console.log(`Error scraping ${courseCode}:`, error.message);
       }
     }
 
-    // Save updated cache
+    // Persist cache if we found new grades
     if (newGrades.length > 0) {
-      saveCache()
+      saveCache();
     }
 
-    // Get all tracked courses from cache (including previously stored ones)
+    // Prepare response with all tracked courses
     const courses = trackedCourses.map(code => {
       if (gradesCache[code]) {
         return gradesCache[code];
@@ -216,7 +246,7 @@ router.post('/fetch', async (req, res) => {
       creditHours,
       courses,
       newGrades
-    })
+    });
 
   } catch (error) {
     console.error('Grade scraping error:', error);
@@ -231,4 +261,5 @@ router.post('/fetch', async (req, res) => {
     if (page && !page.isClosed()) await page.close();
   }
 });
-module.exports = router
+
+module.exports = router;
