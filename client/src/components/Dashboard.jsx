@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import { toast } from 'react-toastify'
 import GradeTable from './GradeTable'
 import CourseForm from './CourseForm'
@@ -89,18 +89,19 @@ export default function Dashboard({ credentials, setAuthenticated }) {
       const intervalMs = refreshInterval * 60 * 1000
       refreshTimer.current = setInterval(() => {
         handleRefresh()
+        // Update next refresh time after each refresh
+        setNextRefresh(new Date(new Date().getTime() + intervalMs))
       }, intervalMs)
 
-      // Calculate next refresh time
-      const now = new Date()
-      const next = new Date(now.getTime() + intervalMs)
-      setNextRefresh(next)
+      // Calculate initial next refresh time
+      setNextRefresh(new Date(new Date().getTime() + intervalMs))
     } else if (!isAutoRefresh && autoRefreshEnabled.current) {
       autoRefreshEnabled.current = false
       if (refreshTimer.current) {
         clearInterval(refreshTimer.current)
         refreshTimer.current = null
       }
+      setNextRefresh(null) // Clear next refresh when auto-refresh is disabled
     }
 
     return () => {
