@@ -1,27 +1,45 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'react-toastify'
+
 import { login } from '../api/auth'
 
+/**
+ * Authentication form component with multi-step login flow.
+ * @component
+ * @param {Object} props - Component props
+ * @param {Function} props.setAuthenticated - Callback to set authentication status
+ * @param {Object} props.credentials - Current credentials {username, password}
+ * @param {Function} props.setCredentials - Callback to update credentials
+ * @returns {JSX.Element} Authentication form with username/password steps
+ */
 export default function AuthForm({ setAuthenticated, credentials, setCredentials }) {
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(1) // 1 = username step, 2 = password step
   const [isLoading, setIsLoading] = useState(false)
-  const [loadingDots, setLoadingDots] = useState('.')
+  const [loadingDots, setLoadingDots] = useState('.') // For loading animation
 
-  // Animation effect for loading dots
+  /**
+   * Animation effect for loading dots during authentication
+   */
   useEffect(() => {
     let interval
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingDots(prev => {
+          if (prev === '') return '.'
           if (prev === '.') return '..'
           if (prev === '..') return '...'
-          return '.'
+          return ''
         })
       }, 500)
     }
     return () => clearInterval(interval)
   }, [isLoading])
 
+  /**
+   * Handles form submission for authentication
+   * @async
+   * @param {Event} e - Form submit event
+   */
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
@@ -29,20 +47,19 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
     try {
       const response = await login(credentials)
       if (response.success) {
-        // Store cookies in memory for future requests
+        // Store session data in memory (not persistent)
         sessionStorage.setItem('authCookies', JSON.stringify(response.cookies))
-        // Store username in session storage
         sessionStorage.setItem('username', credentials.username)
         setAuthenticated(true)
         toast.success('Login successful')
       }
     } catch (error) {
-      // Handle specific error messages
+      // Handle specific error messages with appropriate user feedback
       if (error.message.includes('Username does not exist')) {
         toast.error('Username does not exist', {
           toastId: 'username-error' // Prevent duplicate toasts
         })
-        setStep(1) // Go back to username step
+        setStep(1) // Reset to username step
       } else if (error.message.includes('Invalid password')) {
         toast.error('Invalid password. Please try again.', {
           toastId: 'password-error'
@@ -63,6 +80,7 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
         <h1 className="text-2xl font-bold mb-6 text-center">University Portal Login</h1>
         
         {step === 1 ? (
+          // Username step
           <div>
             <div className="mb-4">
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
@@ -93,6 +111,7 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
             </button>
           </div>
         ) : (
+          // Password step
           <div>
             <div className="mb-4">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
@@ -130,6 +149,7 @@ export default function AuthForm({ setAuthenticated, credentials, setCredentials
             </div>
           </div>
         )}
+        {/* Privacy disclaimer */}
         <p className="text-[11px] text-gray-500 mt-4 text-justify">
           Your credentials are stored in memory only for the duration of this session and are not persisted on disk or sent to any server. They are used solely for the purpose of scraping your grades from the university portal.
         </p>

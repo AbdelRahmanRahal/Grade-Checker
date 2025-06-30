@@ -4,6 +4,14 @@ import GradeTable from './GradeTable'
 import CourseForm from './CourseForm'
 import { fetchGrades } from '../api/grades'
 
+/**
+ * Main dashboard component with grade tracking and auto-refresh functionality.
+ * @component
+ * @param {Object} props - Component props
+ * @param {Object} props.credentials - User credentials
+ * @param {Function} props.setAuthenticated - Authentication state setter
+ * @returns {JSX.Element} Dashboard with controls, course management, and grade display
+ */
 export default function Dashboard({ credentials, setAuthenticated }) {
   const [grades, setGrades] = useState(null)
   const [trackedCourses, setTrackedCourses] = useState([])
@@ -12,10 +20,10 @@ export default function Dashboard({ credentials, setAuthenticated }) {
   const [refreshInterval, setRefreshInterval] = useState(30) // Default 30 minutes
   const [isAutoRefresh, setIsAutoRefresh] = useState(false)
   const [nextRefresh, setNextRefresh] = useState(null)
-  const autoRefreshEnabled = useRef(false) // To track if auto-refresh is enabled to avoid multiple setups
-  const refreshTimer = useRef(null)
+  const autoRefreshEnabled = useRef(false) // Tracks auto-refresh state to prevent duplicate setups
+  const refreshTimer = useRef(null) // Stores interval reference
 
-  // Load tracked courses and interval settings from localStorage on initial render
+  // Load persisted data on mount
   useEffect(() => {
     const savedCourses = localStorage.getItem('trackedCourses')
     if (savedCourses) {
@@ -28,6 +36,9 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     }
   }, [])
 
+  /**
+   * Handles user logout and cleanup
+   */
   const handleLogout = () => {
     setAuthenticated(false)
     setIsAutoRefresh(false)
@@ -35,6 +46,9 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     toast.success('Logged out successfully')
   }
 
+  /**
+   * Fetches grades from API and updates state
+   */
   const handleRefresh = async () => {
     setIsLoading(true)
     try {
@@ -56,7 +70,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
         })
         setLastUpdated(new Date())
 
-        // Show notification for new grades
+        // Show persistent notifications for new grades
         if (response.newGrades.length > 0) {
           response.newGrades.forEach(course => {
             toast.success(`New grade for ${course.code}: ${course.grade}`, {
@@ -77,23 +91,22 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     }
   }
 
-  // Handle auto-refresh
+  // Auto-refresh effect
   useEffect(() => {
     if (isAutoRefresh && !autoRefreshEnabled.current) {
       autoRefreshEnabled.current = true
       
-      // Immediate first refresh when enabling auto-refresh
+      // Initial refresh when enabling
       handleRefresh()
       
-      // Set up interval
+      // Set up refresh interval
       const intervalMs = refreshInterval * 60 * 1000
       refreshTimer.current = setInterval(() => {
         handleRefresh()
-        // Update next refresh time after each refresh
         setNextRefresh(new Date(new Date().getTime() + intervalMs))
       }, intervalMs)
 
-      // Calculate initial next refresh time
+      // Set initial next refresh time
       setNextRefresh(new Date(new Date().getTime() + intervalMs))
     } else if (!isAutoRefresh && autoRefreshEnabled.current) {
       autoRefreshEnabled.current = false
@@ -101,7 +114,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
         clearInterval(refreshTimer.current)
         refreshTimer.current = null
       }
-      setNextRefresh(null) // Clear next refresh when auto-refresh is disabled
+      setNextRefresh(null)
     }
 
     return () => {
@@ -111,7 +124,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     }
   }, [isAutoRefresh, refreshInterval])
 
-  // Update next refresh time display
+  // Next refresh time display effect
   useEffect(() => {
     let timeout
     if (nextRefresh) {
@@ -131,6 +144,10 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     }
   }, [nextRefresh])
 
+  /**
+   * Handles refresh interval change
+   * @param {Event} e - Input change event
+   */
   const handleIntervalChange = (e) => {
     const value = parseInt(e.target.value)
     if (!isNaN(value) && value > 0) {
@@ -139,6 +156,9 @@ export default function Dashboard({ credentials, setAuthenticated }) {
     }
   }
 
+  /**
+   * Toggles auto-refresh on/off
+   */
   const toggleAutoRefresh = () => {
     const newState = !isAutoRefresh
     setIsAutoRefresh(newState)
@@ -151,6 +171,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-4 sm:p-6">
+      {/* Header with logout */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Grade Dashboard</h1>
         <button
@@ -161,7 +182,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
         </button>
       </div>
 
-      {/* Always show the controls section */}
+      {/* Controls section */}
       <div className="mb-8 bg-white p-6 rounded-lg shadow-md w-full">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -198,6 +219,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
           </div>
         </div>
 
+        {/* GPA and credit hours display */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {grades ? (
             <>
@@ -221,6 +243,7 @@ export default function Dashboard({ credentials, setAuthenticated }) {
           )}
         </div>
 
+        {/* Refresh interval control */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Auto-refresh Interval (minutes)
@@ -233,20 +256,19 @@ export default function Dashboard({ credentials, setAuthenticated }) {
             disabled={isAutoRefresh}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          {
-            isAutoRefresh ? (
-              <p className="text-xs text-gray-500 mt-1">
-                Disable auto-refresh to change interval
-              </p>
-            ) : (
-              <p className="text-xs text-red-600 mt-1">
-                Hot tip: Don't set this too low, as it may lead to rate limiting from the server, or unexpected behavior from the code.
-              </p>
-            )
-          }
+          {isAutoRefresh ? (
+            <p className="text-xs text-gray-500 mt-1">
+              Disable auto-refresh to change interval
+            </p>
+          ) : (
+            <p className="text-xs text-red-600 mt-1">
+              Hot tip: Don't set this too low, as it may lead to rate limiting from the server, or unexpected behavior from the code.
+            </p>
+          )}
         </div>
       </div>
 
+      {/* Course management and grade display */}
       <CourseForm 
         trackedCourses={trackedCourses} 
         setTrackedCourses={setTrackedCourses} 

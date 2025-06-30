@@ -1,9 +1,21 @@
 import { useState } from 'react'
 import { toast } from 'react-toastify'
 
+/**
+ * Form for adding/removing tracked courses with local storage persistence.
+ * @component
+ * @param {Object} props - Component props
+ * @param {Array<string>} props.trackedCourses - Current list of tracked course codes
+ * @param {Function} props.setTrackedCourses - Callback to update tracked courses
+ * @returns {JSX.Element} Course management form with add/remove functionality
+ */
 export default function CourseForm({ trackedCourses, setTrackedCourses }) {
   const [courseCode, setCourseCode] = useState('')
 
+  /**
+   * Handles adding a new course to the tracked list
+   * @param {Event} e - Form submit event
+   */
   const handleAddCourse = (e) => {
     e.preventDefault()
     
@@ -26,6 +38,10 @@ export default function CourseForm({ trackedCourses, setTrackedCourses }) {
     toast.success(`Added course ${normalizedCode}`)
   }
 
+  /**
+   * Handles removing a course from the tracked list
+   * @param {string} codeToRemove - Course code to remove
+   */
   const handleRemoveCourse = (codeToRemove) => {
     const newCourses = trackedCourses.filter(code => code !== codeToRemove)
     setTrackedCourses(newCourses)
@@ -37,6 +53,7 @@ export default function CourseForm({ trackedCourses, setTrackedCourses }) {
     <div className="bg-white p-6 rounded-lg shadow-md mb-6">
       <h2 className="text-xl font-semibold mb-4">Track Courses</h2>
       
+      {/* Add course form */}
       <form onSubmit={handleAddCourse} className="flex gap-2 mb-4">
         <input
           type="text"
@@ -53,6 +70,7 @@ export default function CourseForm({ trackedCourses, setTrackedCourses }) {
         </button>
       </form>
       
+      {/* Current courses list */}
       {trackedCourses.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-700 mb-2">Currently Tracked Courses</h3>
@@ -66,6 +84,7 @@ export default function CourseForm({ trackedCourses, setTrackedCourses }) {
                 <button 
                   onClick={() => handleRemoveCourse(code)}
                   className="text-gray-500 hover:text-red-600"
+                  aria-label={`Remove course ${code}`}
                 >
                   ×
                 </button>
