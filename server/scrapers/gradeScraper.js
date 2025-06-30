@@ -7,6 +7,8 @@ const { getPage } = require('./../browserInstance')
 
 const GRADES_URL = 'https://register.nu.edu.eg/PowerCampusSelfService/Grades/GradeReport'
 const CACHE_PATH = path.join(__dirname, '../../grades_cache.json')
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000; // 5 seconds between retries
 
 // Load or initialize cache
 let gradesCache = {}
@@ -30,6 +32,27 @@ function sendNotification(course) {
   })
 }
 
+// Retry helper function
+async function withRetry(fn, maxAttempts = MAX_RETRIES) {
+  let attempts = 0;
+  
+  while (attempts < maxAttempts) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempts++;
+      console.log(`Attempt ${attempts}/${maxAttempts} failed: ${error.message}`);
+      
+      if (attempts >= maxAttempts) {
+        throw error;
+      }
+      
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+}
+
 router.post('/fetch', async (req, res) => {
   const { cookies, trackedCourses } = req.body
 
@@ -37,19 +60,23 @@ router.post('/fetch', async (req, res) => {
     return res.status(400).json({ error: 'Cookies and tracked courses are required' })
   }
 
-  let page
+  let page;
   try {
-    page = await getPage()
+    page = await getPage();
+    await page.setCookie(...cookies);
     
-    // Set cookies for authenticated session
-    await page.setCookie(...cookies)
-    
-    console.log('Navigating to grades page...')
-    await page.goto(GRADES_URL, { waitUntil: 'networkidle2' })
+    // Wrap navigation in retry logic
+    await withRetry(async (attempts = 0) => {
+      console.log(`Navigating to grades page (attempt ${attempts + 1}/${MAX_RETRIES})...`);
+      await page.goto(GRADES_URL, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+    });
 
     // Check if we're still logged in
     if (page.url().includes('LogIn')) {
-      return res.status(401).json({ error: 'Session expired. Please login again.' })
+      return res.status(401).json({ error: 'Session expired. Please login again.' });
     }
 
     // Scrape overall GPA using structure-based selector
@@ -192,11 +219,16 @@ router.post('/fetch', async (req, res) => {
     })
 
   } catch (error) {
-    console.error('Grade scraping error:', error)
-    res.status(500).json({ error: 'Failed to fetch grades. Please try again.' })
+    console.error('Grade scraping error:', error);
+    
+    // Special handling for timeout errors
+    if (error.message.includes('net::ERR_CONNECTION_TIMED_OUT')) {
+      return res.status(504).json({ error: 'University site is unreachable, likely due to a timeout or the site is down. Please try again later.' });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch grades. Please try again.' });
   } finally {
     if (page && !page.isClosed()) await page.close();
   }
-})
-
+});
 module.exports = router
