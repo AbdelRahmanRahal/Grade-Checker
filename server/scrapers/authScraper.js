@@ -27,7 +27,7 @@ router.post('/login', async (req, res) => {
     
     console.log('Waiting for password field or error message...')
     try {
-      await page.waitForSelector('#txtPassword, [role="alertdialog"]', { timeout: 10000 })
+      await page.waitForSelector('#txtPassword, [role="alertdialog"]', { timeout: 20000 })
     } catch (error) {
       console.log('Login timeout. Please try again.')
       await browser.close()
@@ -39,7 +39,6 @@ router.post('/login', async (req, res) => {
     if (usernameError) {
       const errorText = await page.evaluate(el => el.textContent, usernameError)
       console.log(`Username error: ${errorText}`)
-      await browser.close()
       return res.status(401).json({ error: errorText.includes('exist') ? 
         'Username does not exist.' : errorText })
     }
@@ -48,7 +47,6 @@ router.post('/login', async (req, res) => {
     const passwordField = await page.$('#txtPassword')
     if (!passwordField) {
       console.log('Password field not found after username submission')
-      await browser.close()
       return res.status(401).json({ error: 'Username does not exist.' })
     }
 
@@ -62,11 +60,10 @@ router.post('/login', async (req, res) => {
     try {
       await Promise.race([
         page.waitForNavigation({ waitUntil: 'networkidle2' }),
-        page.waitForSelector('[role="alertdialog"]', { timeout: 10000 })
+        page.waitForSelector('[role="alertdialog"]', { timeout: 20000 })
       ])
     } catch (error) {
       console.log('Login timeout. Please try again.')
-      await browser.close()
       return res.status(401).json({ error: 'Login timeout. Please try again.' })
     }
 
@@ -75,7 +72,6 @@ router.post('/login', async (req, res) => {
     if (passwordError) {
       const errorText = await page.evaluate(el => el.textContent, passwordError)
       console.log(`Password error: ${errorText}`)
-      await browser.close()
       return res.status(401).json({ error: errorText.includes('Invalid') ? 
         'Invalid password' : errorText })
     }
@@ -84,7 +80,6 @@ router.post('/login', async (req, res) => {
     const currentUrl = page.url()
     if (currentUrl.includes('LogIn')) {
       console.log('Login failed. Please try again.')
-      await browser.close()
       return res.status(401).json({ error: 'Login failed. Please try again.' })
     }
 
@@ -99,7 +94,7 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', error)
     res.status(500).json({ error: 'Login failed. Please try again later.' })
   } finally {
-    if (page) await page.close()
+    if (page && !page.isClosed()) await page.close();
   }
 })
 

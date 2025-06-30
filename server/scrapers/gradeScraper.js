@@ -195,7 +195,7 @@ router.post('/fetch', async (req, res) => {
     console.error('Grade scraping error:', error)
     res.status(500).json({ error: 'Failed to fetch grades. Please try again.' })
   } finally {
-    if (page) await page.close()
+    if (page && !page.isClosed()) await page.close();
   }
 })
 
